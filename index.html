@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Route Calculator</title>
+    <!-- Include any necessary CSS stylesheets for your design here -->
+</head>
+<body>
+    <h1>Route Calculator</h1>
+
+    <!-- Start Location Input with Autocomplete -->
+    <label for="startLocation">Start Location:</label>
+    <input type="text" id="startLocation" placeholder="Enter start location" />
+    
+    <!-- Final Location Input with Autocomplete -->
+    <label for="finalLocation">Final Location:</label>
+    <input type="text" id="finalLocation" placeholder="Enter final location" />
+
+    <!-- Calculate Route Button -->
+    <button id="calculateRoute">Calculate Route</button>
+
+    <!-- Route Rendering Section -->
+    <h2>Route</h2>
+    <div id="routeDisplay">
+        <!-- Route and info from different providers will be displayed here -->
+    </div>
+
+    <!-- Include necessary JavaScript libraries for mapping and routing -->
+    <!-- Add your JavaScript code to handle route calculation and rendering from different providers -->
+
+    <script>
+        // Example JavaScript code to handle route calculation and rendering
+        document.getElementById('calculateRoute').addEventListener('click', function() {
+            const startLocation = document.getElementById('startLocation').value;
+            const finalLocation = document.getElementById('finalLocation').value;
+
+            // Example: Calculate and display route from Azure Maps
+            const azureRoute = calculateAzureRoute(startLocation, finalLocation);
+            document.getElementById('routeDisplay').innerHTML = '<h3>Azure Maps Route</h3>' + azureRoute;
+
+            // Example: Calculate and display route from HERE Maps
+            const hereRoute = calculateHereRoute(startLocation, finalLocation);
+            document.getElementById('routeDisplay').innerHTML += '<h3>HERE Maps Route</h3>' + hereRoute;
+
+            // Example: Calculate and display route from Google Maps
+            const googleRoute = calculateGoogleRoute(startLocation, finalLocation);
+            document.getElementById('routeDisplay').innerHTML += '<h3>Google Maps Route</h3>' + googleRoute;
+        });
+
+        // Functions to calculate routes using respective mapping services
+        function calculateAzureRoute(startLocation, finalLocation) {
+            // Use Azure Maps API to calculate the route
+            // Replace this with actual code to fetch and display the Azure Maps route
+            return 'Azure Maps route and info here';
+        }
+
+        function calculateHereRoute(startLocation, finalLocation) {
+            // Use HERE Maps API to calculate the route
+            // Replace this with actual code to fetch and display the HERE Maps route
+            return 'HERE Maps route and info here';
+        }
+
+        function calculateGoogleRoute(startLocation, finalLocation) {
+            // Use Google Maps API to calculate the route
+            // Replace this with actual code to fetch and display the Google Maps route
+            return 'Google Maps route and info here';
+        }
+    </script>
+</body>
+</html>
