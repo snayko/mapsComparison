@@ -23,6 +23,7 @@
         <script>
             var map, datasource, client, popup, searchInputFrom, searchInputTo, resultsPanelFrom,  resultsPanelTo, searchInputFromLength,  searchInputToLength,  centerMapOnResultsFrom, centerMapOnResultsTo;
 
+            
             //The minimum number of characters needed in the search input before a search is performed.
             var minSearchInputLength = 3;
 
@@ -46,14 +47,26 @@
                 //Wait until the map resources are ready.
                 map.events.add('ready', function () {
     
+                    //Show traffic on the map using the traffic options.
+                    map.setTraffic({
+                        incidents: true,
+                        flow: 'relative'
+                    });
+
+                    //Att the traffic control toogle button to the top right corner of the map.
+                    map.controls.add(new atlas.control.TrafficControl(), { position: 'top-right' });
+
+                    //Att the traffic legend control to the bottom left corner of the map.
+                    map.controls.add(new atlas.control.TrafficLegendControl(), { position: 'bottom-left' });
+
                     //Create a data source and add it to the map.
                     datasource = new atlas.source.DataSource();
                     map.sources.add(datasource);
     
                     //Add a layer for rendering the route lines and have it render under the map labels.
                     map.layers.add(new atlas.layer.LineLayer(datasource, null, {
-                        strokeColor: '#2272B9',
-                        strokeWidth: 5,
+                        strokeColor: ['get', 'strokeColor'],
+                        strokeWidth: ['get', 'strokeWidth'],
                         lineJoin: 'round',
                         lineCap: 'round'
                     }), 'labels');
@@ -100,11 +113,85 @@
                     //Start and end point input to the routeURL
                     var coordinates = [[startPoint.geometry.coordinates[0], startPoint.geometry.coordinates[1]], [endPoint.geometry.coordinates[0], endPoint.geometry.coordinates[1]]];
     
+                    /* 8M truck mixer
+                    Length = 9.15m
+                    Height = 3.75m
+                    Width = 2.55m
+                    Chute = 2.75m
+                    */
+                    //Make a search route request for a truck vehicle type
+                    routeURL.calculateRouteDirections(atlas.service.Aborter.timeout(10000), coordinates, {
+                        travelMode: 'truck',// 'car', 'truck', 'taxi', 'bus', 'van', 'motorcycle', 'bicycle', 'pedestrian'
+                        vehicleWidth: 2.55,
+                        vehicleHeight: 3.75,
+                        vehicleLength: 9.15,
+
+                        //vehicleWidth: 'USHazmatClass2',
+                         //OtherHazmatGeneral, OtherHazmatHarmfulToWater, USHazmatClass1, USHazmatClass2, USHazmatClass3, USHazmatClass4, USHazmatClass5, USHazmatClass6, USHazmatClass7, USHazmatClass8, USHazmatClass9
+                    }).then((directions) => {
+                        //Get data features from response
+                        var data = directions.geojson.getFeatures();
+
+                        //Get the route line and add some style properties to it.  
+                        var routeLine = data.features[0];
+                        routeLine.properties.strokeColor = '#2272B9';
+                        routeLine.properties.strokeWidth = 9;
+                        
+                        
+                        document.getElementById("truckDepartureTime").textContent = routeLine.properties.summary.departureTime;
+                        document.getElementById("truckArrivalTime").textContent = routeLine.properties.summary.arrivalTime;
+                        document.getElementById("truckLengthInMeters").textContent = metersToKilometers(routeLine.properties.summary.lengthInMeters);
+                        document.getElementById("truckTrafficDelayInSeconds").textContent = secondsToMinutes(routeLine.properties.summary.trafficDelayInSeconds);
+                        document.getElementById("truckTrafficLengthInMeters").textContent = metersToKilometers(routeLine.properties.summary.trafficLengthInMeters);
+                        document.getElementById("truckTravelTimeInSeconds").textContent = secondsToMinutes(routeLine.properties.summary.travelTimeInSeconds);
+
+                        /*
+                        arrivalTime: "2023-09-10T05:22:02+02:00"
+                        departureTime: "2023-09-10T01:55:18+02:00"
+                        lengthInMeters:321629
+                        trafficDelayInSeconds:0
+                        trafficLengthInMeters:0
+                        travelTimeInSeconds: 12404
+                        
+                        carDepartureTime
+                        carArrivalTime
+                        carLengthInMeters
+                        carTrafficDelayInSeconds
+                        carTrafficLengthInMeters
+                        carTravelTimeInSeconds
+
+                        truckDepartureTime
+                        truckArrivalTime
+                        truckLengthInMeters
+                        truckTrafficDelayInSeconds
+                        truckTrafficLengthInMeters
+                        truckTravelTimeInSeconds
+                        
+                        */
+
+                        //Add the route line to the data source. We want this to render below the car route which will likely be added to the data source faster, so insert it at index 0.
+                        datasource.add(routeLine, 0);
+                    });
+                    
                     //Make a search route request
                     routeURL.calculateRouteDirections(atlas.service.Aborter.timeout(10000), coordinates).then((directions) => {
                         //Get data features from response
                         var data = directions.geojson.getFeatures();
-                        datasource.add(data);
+
+                        //Get the route line and add some style properties to it.  
+                        var routeLine = data.features[0];
+                        routeLine.properties.strokeColor = '#B76DAB';
+                        routeLine.properties.strokeWidth = 5;
+
+                        document.getElementById("carDepartureTime").textContent = routeLine.properties.summary.departureTime;
+                        document.getElementById("carArrivalTime").textContent = routeLine.properties.summary.arrivalTime;
+                        document.getElementById("carLengthInMeters").textContent =  metersToKilometers(routeLine.properties.summary.lengthInMeters);
+                        document.getElementById("carTrafficDelayInSeconds").textContent = secondsToMinutes(routeLine.properties.summary.trafficDelayInSeconds);
+                        document.getElementById("carTrafficLengthInMeters").textContent = metersToKilometers(routeLine.properties.summary.trafficLengthInMeters);
+                        document.getElementById("carTravelTimeInSeconds").textContent = secondsToMinutes(routeLine.properties.summary.travelTimeInSeconds);
+
+                        //Add the route line to the data source. We want this to render below the car route which will likely be added to the data source faster, so insert it at index 0.  
+                        datasource.add(routeLine);
                     });
                 });
             }
@@ -622,7 +709,28 @@
                 background-image: url("data:image/svg+xml;base64,PHN2ZyBpZD0iTGF5ZXJfMSIgZGF0YS1uYW1lPSJMYXllciAxIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNyAzNiI+PHRpdGxlPnBvaTwvdGl0bGU+PHBhdGggZD0iTTEzLjUsMGExMy4zNywxMy4zNywwLDAsMSwzLjU4NTkuNDc5MiwxMy43ODY2LDEzLjc4NjYsMCwwLDEsMy4yMjczLDEuMzQzOCwxMy4zMzg2LDEzLjMzODYsMCwwLDEsNi4yMDE2LDcuOTY4N0ExMi45MDA5LDEyLjkwMDksMCwwLDEsMjcsMTMuMzMzM2ExMC41NjY0LDEwLjU2NjQsMCwwLDEtLjM0OCwyLjc0LDEzLjQwNTEsMTMuNDA1MSwwLDAsMS0xLjAwMiwyLjU5MzhMMTMuNSwzNiwxLjM1LDE4LjY2NjdBMTMuNDA1LDEzLjQwNSwwLDAsMSwuMzQ4LDE2LjA3MjksMTAuNTY2NCwxMC41NjY0LDAsMCwxLDAsMTMuMzMzMywxMi45MDA5LDEyLjkwMDksMCwwLDEsLjQ4NTIsOS43OTE3LDEzLjQzNDYsMTMuNDM0NiwwLDAsMSwxLjg0NTcsNi42MDQyYTEzLjQ1MywxMy40NTMsMCwwLDEsNC44NDEtNC43ODEyQTEzLjc4NjUsMTMuNzg2NSwwLDAsMSw5LjkxNDEuNDc5MiwxMy4zNywxMy4zNywwLDAsMSwxMy41LDBNMjMuNTQwNiwxNy42MjVxMC0uMDIwOC4wMTA1LS4wMjA4dC4wMTA1LS4wMjA4YTguOTgsOC45OCwwLDAsMCwuODAxNi0yLjA2MjUsOC44ODE2LDguODgxNiwwLDAsMCwuMjc0Mi0yLjE4NzUsMTAuNTMzNywxMC41MzM3LDAsMCwwLS44NzU0LTQuMjcwOCwxMS4xNTYxLDExLjE1NjEsMCwwLDAtMi4zOTQxLTMuNSwxMS4zMSwxMS4zMSwwLDAsMC0zLjU0MzctMi4zNjQ2QTEwLjg5NjEsMTAuODk2MSwwLDAsMCwxMy41LDIuMzMzM2ExMC44OTYxLDEwLjg5NjEsMCwwLDAtNC4zMjQyLjg2NDZBMTEuMzEsMTEuMzEsMCwwLDAsNS42MzIsNS41NjI1YTExLjE1NjEsMTEuMTU2MSwwLDAsMC0yLjM5NDEsMy41LDEwLjUzMzcsMTAuNTMzNywwLDAsMC0uODc1NCw0LjI3MDgsOC44ODE1LDguODgxNSwwLDAsMCwuMjc0MiwyLjE4NzUsOC45OCw4Ljk4LDAsMCwwLC44MDE2LDIuMDYyNXEwLC4wMjA4LjAxMDUuMDIwOHQuMDEwNS4wMjA4TDEzLjUsMzAuNzkxNywyMy41NDA2LDE3LjYyNU0xMy41LDUuNWE3LjgxMjIsNy44MTIyLDAsMCwxLDMuMDkuNjE0Niw4LjAwOTMsOC4wMDkzLDAsMCwxLDIuNTIwNywxLjY3NzEsNy45LDcuOSwwLDAsMSwxLjY5OCwyLjQ5LDcuNzk2LDcuNzk2LDAsMCwxLDAsNi4xMDQyLDcuOSw3LjksMCwwLDEtMS42OTgsMi40OUE4LjAwOTMsOC4wMDkzLDAsMCwxLDE2LjU5LDIwLjU1MjFhOC4wNzY0LDguMDc2NCwwLDAsMS02LjE4LDBBOC4wMDkyLDguMDA5MiwwLDAsMSw3Ljg4OTEsMTguODc1YTcuOSw3LjksMCwwLDEtMS42OTgtMi40OSw3Ljc5Niw3Ljc5NiwwLDAsMSwwLTYuMTA0Miw3LjksNy45LDAsMCwxLDEuNjk4LTIuNDlBOC4wMDkyLDguMDA5MiwwLDAsMSwxMC40MSw2LjExNDYsNy44MTIzLDcuODEyMywwLDAsMSwxMy41LDUuNW0wLDEzLjMzMzNhNS41NDA3LDUuNTQwNywwLDAsMCw1LjEzNjMtMy4zNTQyLDUuNTQsNS41NCwwLDAsMCwwLTQuMjkxNyw1LjUwNTQsNS41MDU0LDAsMCwwLTEuMTkxOC0xLjc1LDUuNjI4OSw1LjYyODksMCwwLDAtNy44ODkxLDAsNS41MDU0LDUuNTA1NCwwLDAsMC0xLjE5MTgsMS43NSw1LjU0LDUuNTQsMCwwLDAsMCw0LjI5MTcsNS41MDU0LDUuNTA1NCwwLDAsMCwxLjE5MTgsMS43NUE1LjU2OTQsNS41Njk0LDAsMCwwLDEzLjUsMTguODMzM1oiIGZpbGw9IiM2NzY4NjciLz48L3N2Zz4=");
             }
 
+            #routeDisplayInfo {
+                display: flex;
+                justify-content: space-between;
+            }
+
+            .route-info {
+                flex-basis: 48%; /* Adjust the width as needed */
+                border: 1px solid #ccc;
+                padding: 10px;
+            }
+
+            .route-info h4 {
+                text-align: center;
+            }
+
         </style>
+
+        <script src="https://polyfill.io/v3/polyfill.min.js?features=default"></script>
+        <link rel="stylesheet" type="text/css" href="./style.css" />
+        <script type="module" src="./index.js"></script>
+
+        
     </head>
     
 <body onload="GetMap()">
@@ -639,6 +747,31 @@
     <h2>Route</h2>
     
     <h3>Azure Maps Route</h3>
+
+    <div id="routeDisplayInfo">
+        <div class="route-info">
+            <h4>Car Route</h4>
+            <ul>
+                <li><strong>Departure Time:</strong> <span id="carDepartureTime">[Car Departure Time]</span></li>
+                <li><strong>Arrival Time:</strong> <span id="carArrivalTime">[Car Arrival Time]</span></li>
+                <li><strong>Length in KM:</strong> <span id="carLengthInMeters">[Car Length in Meters]</span></li>
+                <li><strong>Traffic Delay in Min:</strong> <span id="carTrafficDelayInSeconds">[Car Traffic Delay in Seconds]</span></li>
+                <li><strong>Traffic Length in KM:</strong> <span id="carTrafficLengthInMeters">[Car Traffic Length in Meters]</span></li>
+                <li><strong>Travel Time in Min:</strong> <span id="carTravelTimeInSeconds">[Car Travel Time in Seconds]</span></li>
+            </ul>
+        </div>
+        <div class="route-info">
+            <h4>Truck Route</h4>
+            <ul>
+                <li><strong>Departure Time:</strong> <span id="truckDepartureTime">[Truck Departure Time]</span></li>
+                <li><strong>Arrival Time:</strong> <span id="truckArrivalTime">[Truck Arrival Time]</span></li>
+                <li><strong>Length in KM:</strong> <span id="truckLengthInMeters">[Truck Length in Meters]</span></li>
+                <li><strong>Traffic Delay in Min:</strong> <span id="truckTrafficDelayInSeconds">[Truck Traffic Delay in Seconds]</span></li>
+                <li><strong>Traffic Length in KM:</strong> <span id="truckTrafficLengthInMeters">[Truck Traffic Length in Meters]</span></li>
+                <li><strong>Travel Time in Min:</strong> <span id="truckTravelTimeInSeconds">[Truck Travel Time in Seconds]</span></li>
+            </ul>
+        </div>
+    </div>
 
     <div id="azureRouteDisplay">
     
@@ -676,6 +809,15 @@
     
     </div>
     
+    <!-- 
+      The `defer` attribute causes the callback to execute after the full HTML
+      document has been parsed. For non-blocking uses, avoiding race conditions,
+      and consistent behavior across browsers, consider loading using Promises.
+      See https://developers.google.com/maps/documentation/javascript/load-maps-js-api
+      for more information.
+      -->
+      <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCOARBbDpu6Lm8ASEJReUAVNJ5SOuDTS_U&callback=initGoogleMap&v=weekly" defer></script>
+
     <!-- Include necessary JavaScript libraries for mapping and routing -->
     <!-- Add your JavaScript code to handle route calculation and rendering from different providers -->
 
@@ -735,6 +877,19 @@
             {
                 throw new Error('Invalid coordinates array');
             }
+        }
+
+        function secondsToMinutes(seconds) {
+            // Calculate the minutes by dividing seconds by 60
+            var minutes = Math.floor(seconds / 60);
+            return minutes;
+        }
+
+        function metersToKilometers(meters) {
+            // Convert meters to kilometers by dividing by 1000
+            var kilometers = meters / 1000;
+
+            return kilometers;
         }
 
         
