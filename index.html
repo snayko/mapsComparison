@@ -19,17 +19,25 @@
     
         <!-- Add a reference to the Azure Maps Services Module JavaScript file. -->
         <script src="https://atlas.microsoft.com/sdk/javascript/service/2/atlas-service.min.js"></script>
+
+        
+
+        <script src="https://polyfill.io/v3/polyfill.min.js?features=default"></script>
+
+        <link rel="stylesheet" type="text/css" href="./style.css" />
+
     
         <script>
             var map, datasource, client, popup, searchInputFrom, searchInputTo, resultsPanelFrom,  resultsPanelTo, searchInputFromLength,  searchInputToLength,  centerMapOnResultsFrom, centerMapOnResultsTo;
-
-            
+            var directionsService, directionsRenderer, mapGoogle;
+                
             //The minimum number of characters needed in the search input before a search is performed.
             var minSearchInputLength = 3;
 
             //The number of ms between key strokes to wait before performing a search.
             var keyStrokeDelay = 150;
-
+            
+            
     
             function GetAzureMap(startPointCoord, endPointCoord) {
     
@@ -484,23 +492,167 @@
                 popup.open(map);
             }
         
-        </script>
-        <style>
-            html,
-            body {
-                width: 100%;
-                height: 100%;
-                padding: 0;
-                margin: 0;
-                overflow:hidden;
-                font-family: segoeui;
+            // Initialize the google map
+            function initGoogleMap() {
+                directionsService = new google.maps.DirectionsService();
+                directionsRenderer = new google.maps.DirectionsRenderer();
+                mapGoogle = new google.maps.Map(document.getElementById("googleRouteDisplay"), {
+                    zoom: 7,
+                    center: {  lat: 34.039737, lng: -118.270293 }, //49.403596150413094, 8.663616728347026
+                });
+
+                directionsRenderer.setMap(mapGoogle);
+
+                const onChangeHandler = function () {
+                    //calculateAndDisplayRoute(directionsService, directionsRenderer);
+                };
+
+                //document.getElementById("search-input-start").addEventListener("change", onChangeHandler);
+                //document.getElementById("search-input-end").addEventListener("change", onChangeHandler);
+
+                //calculateAndDisplayRoute(directionsService, directionsRenderer);
             }
-            #azureRouteDisplay {
-                position: relative;
-                width: 100%;
-                height: 100%;
+
+            // Initialize the google map
+            function calculateAndDisplayRoute(fromCoord, toCoord) {
+
+                var service = new google.maps.DistanceMatrixService();
+                service.getDistanceMatrix(
+                {
+                    origins: convertGoogleMapsStringToCoordinates(fromCoord),
+                    destinations: convertGoogleMapsStringToCoordinates(toCoord),
+                    travelMode: google.maps.TravelMode.DRIVING,
+                    drivingOptions: {
+                            departureTime: new Date(Date.now()),  // for the time N milliseconds from now.
+                            trafficModel: 'pessimistic'
+                        },
+                    unitSystem: google.maps.UnitSystem.METRIC
+                }, callback);
+
+                
+                directionsService.route(
+                    {
+                        origin: fromCoord,
+                        destination: toCoord,
+                        travelMode: google.maps.TravelMode.DRIVING,
+                        drivingOptions: {
+                            departureTime: new Date(Date.now()),  // for the time N milliseconds from now.
+                            trafficModel: 'bestguess'
+                        },
+                        unitSystem: google.maps.UnitSystem.METRIC,
+                    })
+                    .then(response => {
+                        
+                        // Get the first route from the response
+                        const route = response.routes[0];
+
+                        // Access the distance and duration information
+                        const distance = route.legs[0].distance.text; // Distance in a human-readable format (e.g., "5.2 km")
+                        const duration = route.legs[0].duration.text; // Estimated duration in a human-readable format (e.g., "12 mins")
+
+                        // You can also access pessimistic and optimistic travel times if available
+                        const optimisticDuration = route.legs[0].duration_in_traffic ? route.legs[0].duration_in_traffic.text : null;
+                        
+                        
+                        const durationInSeconds = route.legs[0].duration.value;
+
+                        const currentTime = new Date();
+                        const startTime = currentTime;
+
+                        // Calculate end time
+                        const endTime = new Date(currentTime.getTime() + (durationInSeconds * 1000)); // Convert seconds to milliseconds
+
+                        // You can also format the start and end times as needed
+                        const startTimeFormatted = startTime.toLocaleTimeString();
+                        const endTimeFormatted = endTime.toLocaleTimeString();
+                        
+                        // Display the route on the map
+                        directionsRenderer.setDirections(response);
+
+                        document.getElementById("gGcarDepartureTime").textContent = startTimeFormatted;
+                        document.getElementById("gGcarArrivalTime").textContent = endTimeFormatted;
+                        document.getElementById("gGcarLengthInMeters").textContent =  distance;
+                        //document.getElementById("gGcarTrafficDelayInSeconds").textContent = secondsToMinutes(route.legs[0].duration_in_traffic.value);
+                        //document.getElementById("gGcarTrafficLengthInMeters").textContent = metersToKilometers(route.legs[0].duration_in_traffic.distance.value);
+                        document.getElementById("gGcarTravelTimeInSeconds").textContent = duration + " (in traff:" + optimisticDuration + ")";
+                    })
+                    .catch(e => console.log(e));
             }
             
+            function callback(response, status) {
+                // See Parsing the Results for
+                // the basics of a callback function.
+            }
+
+            window.initGoogleMap = initGoogleMap;
+
+        </script>
+        <style>
+            /* styles.css */
+            body {
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            -webkit-flex-direction: column;
+            min-height: 100vh;
+            }
+
+            header {
+            background-color: #333;
+            color: white;
+            text-align: center;
+            padding: 10px;
+            }
+
+            nav {
+            background-color: #555;
+            color: white;
+            padding: 10px;
+            text-align: center;
+            }
+
+            main {
+            flex-grow: 1;
+            background-color: #f2f2f2;
+            padding: 10px;
+            }
+
+            footer {
+            background-color: #333;
+            color: white;
+            text-align: center;
+            padding: 10px;
+            }
+
+            /* styles.css */
+            .route-section {
+            display: flex;
+            flex-direction: row;
+            justify-content: space-between;
+            align-items: flex-start;
+            }
+
+            .route-display {
+            flex: 1;  /*This makes the routeDisplayInfo div take up available space */
+            }
+
+            #azureRouteDisplay {
+            
+            width: 100%;
+            height: 400px;
+            }
+            #googleRouteDisplay {
+            
+            width: 100%;
+            height: 400px;
+            }
+            #hereRouteDisplay {
+            
+            width: 100%;
+            height: 400px;
+            }
+
             #searchStartLocation {
                 position: absolute;
                 left: 0px;
@@ -724,103 +876,165 @@
                 text-align: center;
             }
 
+            #calculateRoute {
+                background-color: #3498db; /* Blue background color */
+                color: #fff; /* White text color */
+                border: none; /* Remove button border */
+                padding: 15px 30px; /* Padding for a larger button */
+                font-size: 16px;
+                font-weight: bold;
+                border-radius: 5px; /* Rounded corners */
+                cursor: pointer;
+                transition: background-color 0.3s ease; /* Smooth color transition on hover */
+            }
+
+            #calculateRoute:hover {
+                background-color: #2980b9; /* Darker blue on hover */
+            }
+
         </style>
-
-        <script src="https://polyfill.io/v3/polyfill.min.js?features=default"></script>
-        <link rel="stylesheet" type="text/css" href="./style.css" />
-        <script type="module" src="./index.js"></script>
-
         
     </head>
     
 <body onload="GetMap()">
-    <h1>Route Calculator</h1>
+    <header>
+        
+        <button id="calculateRoute">Calculate Route</button>
 
-    
-    
-    <!-- Calculate Route Button -->
-    <h3>Calculate options</h3>
-    <button id="calculateRoute">Calculate Route</button>
-
-    <!-- Route Rendering Section -->
-
-    <h2>Route</h2>
-    
-    <h3>Azure Maps Route</h3>
-
-    <div id="routeDisplayInfo">
-        <div class="route-info">
-            <h4>Car Route</h4>
-            <ul>
-                <li><strong>Departure Time:</strong> <span id="carDepartureTime">[Car Departure Time]</span></li>
-                <li><strong>Arrival Time:</strong> <span id="carArrivalTime">[Car Arrival Time]</span></li>
-                <li><strong>Length in KM:</strong> <span id="carLengthInMeters">[Car Length in Meters]</span></li>
-                <li><strong>Traffic Delay in Min:</strong> <span id="carTrafficDelayInSeconds">[Car Traffic Delay in Seconds]</span></li>
-                <li><strong>Traffic Length in KM:</strong> <span id="carTrafficLengthInMeters">[Car Traffic Length in Meters]</span></li>
-                <li><strong>Travel Time in Min:</strong> <span id="carTravelTimeInSeconds">[Car Travel Time in Seconds]</span></li>
-            </ul>
-        </div>
-        <div class="route-info">
-            <h4>Truck Route</h4>
-            <ul>
-                <li><strong>Departure Time:</strong> <span id="truckDepartureTime">[Truck Departure Time]</span></li>
-                <li><strong>Arrival Time:</strong> <span id="truckArrivalTime">[Truck Arrival Time]</span></li>
-                <li><strong>Length in KM:</strong> <span id="truckLengthInMeters">[Truck Length in Meters]</span></li>
-                <li><strong>Traffic Delay in Min:</strong> <span id="truckTrafficDelayInSeconds">[Truck Traffic Delay in Seconds]</span></li>
-                <li><strong>Traffic Length in KM:</strong> <span id="truckTrafficLengthInMeters">[Truck Traffic Length in Meters]</span></li>
-                <li><strong>Travel Time in Min:</strong> <span id="truckTravelTimeInSeconds">[Truck Travel Time in Seconds]</span></li>
-            </ul>
-        </div>
-    </div>
-
-    <div id="azureRouteDisplay">
-    
-    </div>
-    
-    <div id="searchStartLocation">
-        <div class="search-input-box">
-            <div class="search-input-group">
-                <div class="search-icon" type="button"></div>
-                <input id="search-input-start" type="text" placeholder="Search From:">
+    </header>
+    <nav>
+        
+    </nav>
+    <main>
+        <h3>Azure Maps Route</h3>
+        <section class="route-section" style="display: block; clear: both;">
+            <div id="routeDisplayInfo" >
+                <div class="route-info">
+                    <h4>Car Route</h4>
+                    <ul>
+                        <li><strong>Departure Time:</strong> <span id="carDepartureTime">[Car Departure Time]</span></li>
+                        <li><strong>Arrival Time:</strong> <span id="carArrivalTime">[Car Arrival Time]</span></li>
+                        <li><strong>Length in KM:</strong> <span id="carLengthInMeters">[Car Length in Meters]</span></li>
+                        <li><strong>Traffic Delay in Min:</strong> <span id="carTrafficDelayInSeconds">[Car Traffic Delay in Seconds]</span></li>
+                        <li><strong>Traffic Length in KM:</strong> <span id="carTrafficLengthInMeters">[Car Traffic Length in Meters]</span></li>
+                        <li><strong>Travel Time in Min:</strong> <span id="carTravelTimeInSeconds">[Car Travel Time in Seconds]</span></li>
+                    </ul>
+                </div>
+                <div class="route-info">
+                    <h4>Truck Route</h4>
+                    <ul>
+                        <li><strong>Departure Time:</strong> <span id="truckDepartureTime">[Truck Departure Time]</span></li>
+                        <li><strong>Arrival Time:</strong> <span id="truckArrivalTime">[Truck Arrival Time]</span></li>
+                        <li><strong>Length in KM:</strong> <span id="truckLengthInMeters">[Truck Length in Meters]</span></li>
+                        <li><strong>Traffic Delay in Min:</strong> <span id="truckTrafficDelayInSeconds">[Truck Traffic Delay in Seconds]</span></li>
+                        <li><strong>Traffic Length in KM:</strong> <span id="truckTrafficLengthInMeters">[Truck Traffic Length in Meters]</span></li>
+                        <li><strong>Travel Time in Min:</strong> <span id="truckTravelTimeInSeconds">[Truck Travel Time in Seconds]</span></li>
+                    </ul>
+                </div>
             </div>
-        </div>
-        <ul id="results-panel-start"></ul>
-    </div>
-    
-    <div id="searchFinalLocation">
-        <div class="search-input-box">
-            <div class="search-input-group">
-                <div class="search-icon" type="button"></div>
-                <input id="search-input-end" type="text" placeholder="Search To:">
+
+        </section>
+        <section>
+            <div id="azureRouteDisplay">
+                    
             </div>
+        </section>
+        <section>
+            <h3>Google Maps Route</h3>
+            <div id="routeDisplayInfo" >
+                <div class="route-info">
+                    <h4>Car Route</h4>
+                    <ul>
+                        <li><strong>Departure Time:</strong> <span id="gGcarDepartureTime">[Car Departure Time]</span></li>
+                        <li><strong>Arrival Time:</strong> <span id="gGcarArrivalTime">[Car Arrival Time]</span></li>
+                        <li><strong>Length in KM:</strong> <span id="gGcarLengthInMeters">[Car Length in Meters]</span></li>
+                        <li><strong>Traffic Delay in Min:</strong> <span id="gGarTrafficDelayInSeconds">[Car Traffic Delay in Seconds]</span></li>
+                        <li><strong>Traffic Length in KM:</strong> <span id="gGcarTrafficLengthInMeters">[Car Traffic Length in Meters]</span></li>
+                        <li><strong>Travel Time in Min:</strong> <span id="gGcarTravelTimeInSeconds">[Car Travel Time in Seconds]</span></li>
+                    </ul>
+                </div>
+                <div class="route-info">
+                    <h4>Truck Route</h4>
+                    <ul>
+                        <li><strong>Departure Time:</strong> <span id="gGtruckDepartureTime">[Truck Departure Time]</span></li>
+                        <li><strong>Arrival Time:</strong> <span id="gGtruckArrivalTime">[Truck Arrival Time]</span></li>
+                        <li><strong>Length in KM:</strong> <span id="gGtruckLengthInMeters">[Truck Length in Meters]</span></li>
+                        <li><strong>Traffic Delay in Min:</strong> <span id="gGtruckTrafficDelayInSeconds">[Truck Traffic Delay in Seconds]</span></li>
+                        <li><strong>Traffic Length in KM:</strong> <span id="gGtruckTrafficLengthInMeters">[Truck Traffic Length in Meters]</span></li>
+                        <li><strong>Travel Time in Min:</strong> <span id="gGtruckTravelTimeInSeconds">[Truck Travel Time in Seconds]</span></li>
+                    </ul>
+                </div>
+            </div>
+            
+        </section>
+        <section>
+            <div id="googleRouteDisplay" style="clear: both; ">
+            
+            </div>
+            
+            <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBhxN3k1T1FpWym09bB7Iml3tCfM7qR9HY&callback=initGoogleMap&v=weekly" defer></script>
+        </section>
+        <section>
+            <h3>HERE Maps Route</h3>
+            <div id="routeDisplayInfo">
+                <div class="route-info">
+                    <h4>Car Route</h4>
+                    <ul>
+                        <li><strong>Departure Time:</strong> <span id="hMcarDepartureTime">[Car Departure Time]</span></li>
+                        <li><strong>Arrival Time:</strong> <span id="hMcarArrivalTime">[Car Arrival Time]</span></li>
+                        <li><strong>Length in KM:</strong> <span id="hMcarLengthInMeters">[Car Length in Meters]</span></li>
+                        <li><strong>Traffic Delay in Min:</strong> <span id="hMcarTrafficDelayInSeconds">[Car Traffic Delay in Seconds]</span></li>
+                        <li><strong>Traffic Length in KM:</strong> <span id="hMcarTrafficLengthInMeters">[Car Traffic Length in Meters]</span></li>
+                        <li><strong>Travel Time in Min:</strong> <span id="hMcarTravelTimeInSeconds">[Car Travel Time in Seconds]</span></li>
+                    </ul>
+                </div>
+                <div class="route-info">
+                    <h4>Truck Route</h4>
+                    <ul>
+                        <li><strong>Departure Time:</strong> <span id="hMtruckDepartureTime">[Truck Departure Time]</span></li>
+                        <li><strong>Arrival Time:</strong> <span id="hMtruckArrivalTime">[Truck Arrival Time]</span></li>
+                        <li><strong>Length in KM:</strong> <span id="hMtruckLengthInMeters">[Truck Length in Meters]</span></li>
+                        <li><strong>Traffic Delay in Min:</strong> <span id="hMtruckTrafficDelayInSeconds">[Truck Traffic Delay in Seconds]</span></li>
+                        <li><strong>Traffic Length in KM:</strong> <span id="hMtruckTrafficLengthInMeters">[Truck Traffic Length in Meters]</span></li>
+                        <li><strong>Travel Time in Min:</strong> <span id="hMtruckTravelTimeInSeconds">[Truck Travel Time in Seconds]</span></li>
+                    </ul>
+                </div>
+            </div>
+
+            
+        </section>
+        <section>
+            <div id="hereRouteDisplay">
+            
+            </div>
+        </section>
+
+        <div id="searchStartLocation">
+            <div class="search-input-box">
+                <div class="search-input-group">
+                    <div class="search-icon" type="button"></div>
+                    <input id="search-input-start" type="text" placeholder="Search From:" value="">
+                </div>
+            </div>
+            <ul id="results-panel-start"></ul>
         </div>
-        <ul id="results-panel-end"></ul>
-    </div>
+        
+        <div id="searchFinalLocation">
+            <div class="search-input-box">
+                <div class="search-input-group">
+                    <div class="search-icon" type="button"></div>
+                    <input id="search-input-end" type="text" placeholder="Search To:" value="">
+                </div>
+            </div>
+            <ul id="results-panel-end"></ul>
+        </div>
 
-    <h3>HERE Maps Route</h3>
+    </main>
+    <footer>
+        <p>&copy; 2023 Your Website</p>
+    </footer>
 
-    <div id="hereRouteDisplay">
     
-    </div>
-    
-    <h3>Google Maps Route</h3>
-
-    <div id="googleRouteDisplay">
-    
-    </div>
-    
-    <!-- 
-      The `defer` attribute causes the callback to execute after the full HTML
-      document has been parsed. For non-blocking uses, avoiding race conditions,
-      and consistent behavior across browsers, consider loading using Promises.
-      See https://developers.google.com/maps/documentation/javascript/load-maps-js-api
-      for more information.
-      -->
-      <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCOARBbDpu6Lm8ASEJReUAVNJ5SOuDTS_U&callback=initGoogleMap&v=weekly" defer></script>
-
-    <!-- Include necessary JavaScript libraries for mapping and routing -->
-    <!-- Add your JavaScript code to handle route calculation and rendering from different providers -->
-
     <script>
         // Example JavaScript code to handle route calculation and rendering
         document.getElementById('calculateRoute').addEventListener('click', function() {
@@ -857,7 +1071,7 @@
         function calculateGoogleRoute(startLocation, finalLocation) {
             // Use Google Maps API to calculate the route
             // Replace this with actual code to fetch and display the Google Maps route
-            
+            calculateAndDisplayRoute(startLocation,finalLocation);
         }
 
         function convertGoogleMapsStringToCoordinates(googleMapsString) {
@@ -892,7 +1106,6 @@
             return kilometers;
         }
 
-        
 
     </script>
 </body>
